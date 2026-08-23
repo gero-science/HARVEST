@@ -1,0 +1,5 @@
+Continue extracting remaining TSV rows.
+
+- Output ONLY data rows (no header, no explanations)
+
+- Keep the same columns and ordering

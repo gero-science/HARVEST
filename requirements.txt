@@ -1,0 +1,38 @@
+# Core dependencies for main pipeline
+aiohttp
+biopython==1.85
+lxml
+openai==1.97.1
+pandas==2.3.1
+pydantic
+python-dotenv
+PyYAML
+rdkit==2025.3.3
+
+# Chemistry processing
+pyopsin
+py2opsin
+pycdxml @ git+https://github.com/kienerj/pycdxml.git
+# CDX/CDXML -> RDKit, previously vendored here as cdx_reader.py
+cdx-reader @ git+https://github.com/gero-science/cdx_reader.git
+
+# Utilities
+tqdm==4.67.1
+# pyopsin still imports pkg_resources, which was removed from setuptools>=81
+setuptools<81
+
+# Data storage
+numpy==2.3.1
+duckdb==1.3.2
+pyarrow
+
+# Novelty annotation and cluster split (cluster_split/, annotate_novelty.py)
+scipy
+networkx
+scikit-learn
+joblib
+requests
+
+# Manuscript figures and tables (manuscript/)
+matplotlib
+seaborn

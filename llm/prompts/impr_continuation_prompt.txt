@@ -1,0 +1,17 @@
+Continue extracting remaining TSV rows, if you do not finish.
+
+CRITICAL RULES:
+- Output ONLY NEW data rows that you have NOT already extracted
+- DO NOT repeat any rows you have already output in previous responses
+- DO NOT output the header row again
+- DO NOT add any explanations, comments, or text outside the TSV format
+- Keep the same columns and ordering as the initial response
+
+If you have finished extracting ALL data and there is nothing NEW to add:
+- Respond with ONLY: [NO_DATA]
+
+If you still have NEW data to extract:
+- Output ONLY the NEW data rows in TSV format
+- Continue from where you left off
+
+Continue with NEW data points only or respond with [NO_DATA] if finished:

@@ -1,0 +1,51 @@
+===== STAGE 3 - Extract Compound Identifiers =====
+
+Goal: Create a TSV (Tab-Separated Values) file that maps each compound from Stage 2 to its chemical identifiers and its chemical ID.
+
+=== COMPOUND FROM STAGE 2 ===
+
+Process the following unique compounds that were extracted in Stage 2:
+
+{compounds}
+
+=== END OF COMPOUND ===
+
+The FIRST LINE MUST BE THE HEADER in TSV format:
+compound	compound_IUPAC_identifier	reasoning	chemical_id
+
+Input Requirements:
+
+    * `compound`: You MUST use the EXACT SAME compound values from the list provided above.
+       - Example: If the list contains "Example 23", use "Example 23".
+       - Independence: Process EACH compound INDIVIDUALLY. Never reuse or copy data between different compounds.
+       - Coverage: Process ALL compounds from the list above. Do not skip any.
+
+    * Algorithm for `compound_IUPAC_identifier`
+        - The compound_IUPAC_identifier column can contain: IUPAC Name, TIF Filename, or be Empty. Follow this strict, four-step decision tree for each compound:
+            * Step A: Search for IUPAC in Text. Search ONLY the patent text (<heading>, <p> tags) for the IUPAC name associated with THIS specific compound.
+            * Step B: IUPAC Found? YES: Write the IUPAC name to the identifier column and STOP.
+            * Step C: Search for TIF Filename. NO (Go to C): Search the <chemistry> tags for the image file tag (<img file="...TIF"/>) related to THIS compound.
+            * Step D: TIF File Found? YES: Write the FULL TIF FILENAME (e.g., US2014...TIF) to the identifier column and STOP.
+            * Step E: Final Action. NO: Leave the compound_IUPAC_identifier field empty.
+        - Critical Constraint Notes:
+            * Explicit Text Only: ONLY accept IUPAC names that are EXPLICITLY WRITTEN IN THE TEXT. Do not infer, generate, or hallucinate names from structures or chemical images.
+            * TIF vs. IUPAC: If you use a TIF FILENAME in Step D, you MUST NOT write an IUPAC name. You must write the filename itself.
+            * Related Compounds: If a compound is derived from another (e.g., "Route Used: 116"), DO NOT copy the parent's IUPAC name. Use THIS compound's TIF filename if no IUPAC is found in its own text.
+
+    * `reasoning` - Provide a SPECIFIC, concise explanation of the source found:
+       - IUPAC Used: "Found IUPAC name in Example heading [Number]."
+       - TIF Used: "No IUPAC in text. Wrote TIF filename [FULL_TIF_FILENAME]."
+       - Derived: "Derived from Example [Number]. No IUPAC in text. Wrote TIF filename [FULL_TIF_FILENAME]."
+       - Not Found: "No specific information found for this compound."
+
+    * `chemical_id`
+        - Extraction: Extract the FULL ID string from the <chemistry id="ID_HERE"> attribute.
+        - Format: The output MUST be in the format CHEM-US-XXXXX (e.g., CHEM-US-00461).
+        - Empty: Leave empty if the chemistry tag is not found.
+
+ABSOLUTE PROHIBITIONS (Must Not Do)
+* DO NOT generate or infer any chemical names.
+* DO NOT copy IUPAC names from parent, related, or similar compounds.
+* DO NOT write an IUPAC name if you are using a TIF filename.
+* DO NOT include rows with empty mandatory columns compound
+* DO NOT reference "Table X" as a source for an IUPAC name if that table contains only TIF structure images.

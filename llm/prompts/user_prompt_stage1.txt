@@ -1,0 +1,69 @@
+TASK: Extract **primary protein targets** with their assay descriptions for which EXPERIMENTAL DATA exists in the patent.
+**Exclude** any downstream substrates, reporters, or readout molecules (e.g., STAT proteins in a JAK assay) from the `protein_target_name` column.
+The target must be the molecule whose activity is directly modulated by the tested compound.
+
+STEP-BY-STEP EXTRACTION:
+
+1. Scan for tables containing protein names and assay data
+
+2. For each **primary protein target** found:
+   a. Extract assay description
+   b. Extract the specific protein name from the text (e.g., "p38 MAPK gamma", "Cathepsin S", "GABA-A receptor", "GABRA1;GABRB2;GABRG2").
+      Ensure this is the primary target and not a substrate used for readout.
+   c. Identify is the protein a complex
+
+        • "Y" - Protein complex (multiple distinct proteins):
+            Structural/signal machines: Proteasome, Ribosome, ATP synthase, Spliceosome, NPC
+            Receptor complexes: GABA-A (α/β/γ), NMDA, nAChR, IL-2R (IL2RA;IL2RB;IL2RG)
+            Warning signs: Gene names with semicolon/slash (GABRA1;GABRB2;GABRG2), terms "complex/holoenzyme/multi-subunit"
+
+        • "N" - Single protein (one gene product):
+            Enzymes: Cathepsin S, Caspase-3, ERK2, PDE10A1, Kinases, Phosphatases
+            Receptors (single-chain): hERG, EGFR (monomeric), GPCRs, Ion channels
+            Other: p53 (homotetramer), S100A4 (homodimer), RPS3, Transcription factors
+            Default: If single gene name without ";" or "complex" terminology → "N"
+
+   d. Identify the source organism (Human, Rat, Mouse, etc.)
+
+   e. Find the assay type/method (e.g., "Binding", "Functional", "Physicochemical", "ADME")
+
+   f. Check assay conditions and flag extreme_conditions:
+      • "Y" - if ANY extreme condition detected:
+        - Temperature < 10°C or > 40°C (e.g., "4°C", "ice-cold", "60°C")
+        - pH < 5 or > 9 (e.g., "pH 4.0", "pH 10.5")
+        - Pressure > 1 atm (e.g., "high pressure", "2 atm")
+      • "N" - if normal conditions explicitly mentioned (e.g., "37°C", "pH 7.4", "room temperature", "physiological conditions")
+      • "U" - if conditions NOT mentioned in assay description
+
+TSV columns:
+assay_id	protein_target_name	is_complex	protein_modification	assay_description	reasoning	assay	organism	extreme_conditions
+
+- For "assay_id" use unique identificator for EACH ROW in the TSV.
+  • assay_id represents a unique combination of (protein_target_name + assay + organism + extreme_conditions)
+  • Each row = unique assay_id (e.g., ASSAY_001, ASSAY_002, ASSAY_003, ...)
+  • Even if multiple proteins use the same assay method, they MUST have different assay_ids
+
+- For "protein_modification", extract the modification state or relevant downstream readout/substrate if it is *explicitly mentioned* and critical to defining the assay (e.g., "STAT5 phosphorylation on Tyr694" in a JAK assay). **This is where the Substrate/Reporter information should be placed.**
+
+- For "assay_description", extract assay description.
+
+- For "reasoning": Provide paragraph id from xml tag <p> (example <p id="p-0004"...) where this assay_description was found.
+
+- For "assay", extract the assay type/name/other identifier. If cannot be determined, use "unspecified".
+
+- For "organism", extract the organism (e.g., Human, Rat, Mouse) from which the protein target was derived. If not explicitly specified, try to infer from context. If cannot be determined, use "unspecified".
+
+- For "extreme_conditions", extract "Y", "N" or "U" if pressure, temperature and pH was not mentioned for the assay.
+
+- If no relevant data points are found, return only the TSV header line.
+
+Example:
+<p id="p-0004">
+... The activity of the compounds was tested using a fluorescence polarization assay for human Cathepsin S. The assay was conducted at room temperature in a buffer at pH 5.5. ... In a separate experiment, the inhibitory effects on the human GABRA1;GABRB2;GABRG2 receptor complex were measured via a binding assay performed at 4°C. The compound's effect on JAK2 was measured by inhibiting STAT5 phosphorylation.
+</p>
+
+Expected Output:
+assay_id	protein_target_name	is_complex	protein_modification	assay_description	reasoning	assay	organism	extreme_conditions
+ASSAY_001	Cathepsin S	N		The activity of the compounds was tested using a fluorescence polarization assay for human Cathepsin S. The assay was conducted at room temperature in a buffer at pH 5.5.	p-0004	fluorescence polarization assay	Human	N
+ASSAY_002	GABRA1;GABRB2;GABRG2	Y		the inhibitory effects on the human GABRA1;GABRB2;GABRG2 receptor complex were measured via a binding assay performed at 4°C.	p-0004	Binding	Human	Y
+ASSAY_003	JAK2	N	STAT5 phosphorylation	The compound's effect on JAK2 was measured by inhibiting STAT5 phosphorylation.	p-0004	Functional assay	unspecified	U

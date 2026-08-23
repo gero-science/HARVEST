@@ -1,0 +1,4 @@
+Context from patent assays (may help identify proteins):
+{stage1_context}
+
+{text_chunk}

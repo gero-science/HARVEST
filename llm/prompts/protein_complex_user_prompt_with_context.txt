@@ -1,0 +1,4 @@
+Context from patent assays:
+{stage1_context}
+
+{text_chunk}

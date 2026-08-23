@@ -1,0 +1,86 @@
+# Example config for a full pipeline run: python pipeline.py --config configs/pipeline.example.yaml
+#
+# Any CLI argument overrides the value here. Store-true CLI flags (--debug,
+# --resume, --continue-on-error) can only switch a setting on.
+# LLM credentials and worker limits of the extraction stage stay in .env.
+
+input:
+  # Single ZIP archive, or a directory with *.zip
+  path: data/hallu_100
+  # Alternative to path: a text file listing ZIP archives, one per line
+  # list: archive_list.txt
+  # Cap on processed patents across all input files (null = no limit)
+  limit: null
+
+output:
+  dir: results/run1
+
+# Canonical order: extract -> proteins -> verify -> export -> postprocess.
+# Any subset is allowed; 'all' is a shortcut for all five stages.
+stages: [extract, proteins, verify, export, postprocess]
+
+common:
+  log_level: INFO
+  debug: false
+  resume: true
+  # true keeps running later stages after a failure (exit code stays non-zero)
+  continue_on_error: false
+
+proteins:
+  # Patents processed in parallel by protein_postprocessor
+  workers: 5
+  stage1_context: true
+  reprocess_all: true
+  # true reprocesses patents that already have single_proteins.json
+  force: false
+  singles_only: false
+  complexes_only: false
+  # Only checked for existence before the stage; the FASTA path itself comes
+  # from protein_postprocessor/config_postprocess.py
+  protein_data_path: data/protein_data
+
+verify:
+  # Directory of patent ZIP files for the hallucination detector.
+  # Defaults to input.path when null.
+  source_dir: null
+  workers: 16
+  # true overwrites existing _hallu.json files
+  force: false
+  # true re-runs only patents whose existing _hallu.json has non-empty flags
+  force_hallu: false
+
+export:
+  workers: 6
+  batch_size: 200
+  # application_number → patent_number mapping (CSV or JSONL); null uses
+  # the repo-shipped curated_data/patent_mapping.csv
+  patent_dict: curated_data/patent_mapping.csv
+  # true enables the opt-in PyOpsin IUPAC -> SMILES path
+  use_opsin: false
+  # Relative paths are resolved against output.dir
+  output_file: main_res.parquet
+  # true drops existing batches and rebuilds from scratch
+  force: false
+  # null uses <repo>/cache
+  cache_dir: null
+
+postprocess:
+  # null takes the export stage output
+  input_file: null
+  output_file: main_res_clean.parquet
+  # null uses cpu_count - 2
+  workers: null
+  chunk_size: 50000
+  # true stops after year/clean_smiles/clean_inchi_key enrichment and skips the filters
+  enrichment_only: false
+  # true skips the expensive clean_smiles enrichment and runs filters only
+  skip_add_clean_best: false
+  skip_phenotypic: false
+  skip_fragments: false
+  skip_duplicates: false
+  heavy_atoms: 15
+  min_count: 5
+  triplet_count: 5
+  # null uses <output_dir>/clean_smiles_cache.sqlite
+  cache_path: null
+  no_cache: false

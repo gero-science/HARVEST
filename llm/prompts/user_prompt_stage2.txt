@@ -1,0 +1,45 @@
+===== Stage 2: Extract Bioactivity =====
+
+Your task: extract all bioactivity data points from ALL tables in the XML above. Process EVERY table completely.
+
+--- Assays table (from Stage 1) ---
+This table contains assays with columns: assay_id, protein_target_name, protein_modification, assay_description, organism
+Note: assay_description contains the full description of the assay method and conditions.
+
+{stage1_data}
+---
+
+TSV columns: compound	assay_id	binding_metric	value	unit	reasoning
+
+A data point is only relevant if the source text for it contains all four of the following components:
+1. A compound (e.g., "Example 1", "Compound 42").
+2. A bioactivity metric from a standard potency metric set (e.g., IC50, Ki, Kd, EC50, pIC50, pKi, pKd).
+3. A specific numeric value for that metric (e.g., "10", "5.5", "<100", ranges like "0.019 to 0.026").
+4. A specific protein target name (match to assay from Assays table).
+
+Do NOT include sentences that only describe methods or calculations in general terms.
+
+Rules:
+1. For "compound": Extract the compound identifier EXACTLY as it appears in the patent text.
+    • If compound has a TEXT identifier (e.g., "Example 1", "Compound 42", "Cpd. 5"):
+      → Copy the text alias EXACTLY as written.
+    • If compound is identified ONLY by a <chemistry> tag (no text alias):
+      → Extract the structure filename from the img tag (e.g., "US20210137901A1-20210513-C00113.TIF").
+    • Do NOT output compound separately from their bioactivity data.
+
+2. For "assay_id", link to the corresponding assay from Assays table:
+   • assay_id is a LINK to a specific row in Assays table
+   • Each assay_id represents a unique combination of (protein_target_name + organism + assay)
+• Find which protein target AND which assay method this bioactivity data is for in the table
+   • Look up that protein_target_name AND assay method description in Assays table output
+   • Use the assay_id from that matching Assays table row
+
+3. For "binding_metric", extract the metric type (IC50, Ki, Kd, EC50, pIC50, etc.)
+
+4. For the 'value' field, extract the actual numeric value. If the text contains symbolic representations (e.g., '+++', 'A', 'B') and there is a legend explaining their meaning, decode them into actual values. Preserve operators ('<10', '>1000'), ranges ('0.019 to 0.026'), and uncertainties ('10 ± 2').
+
+5. For "unit", extract the unit (nM, uM, mM, etc.)
+
+6. For "reasoning": Provide paragraph id from xml tag <p> (example <p id="p-0004"...) where this data was found.
+
+7. If no relevant data points are found, return only the TSV header line.
