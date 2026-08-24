@@ -171,8 +171,6 @@ def load_data_from_parquet(harvest_path: Path, bdb_path: Path):
     harvest_proteins = set(df['_acc'].unique())
 
     # ── Classify proteins by BDB membership, not annotation status ──
-    # After the cluster-id backfill all proteins carry novelty_label, so
-    # annotation presence can no longer distinguish new from overlap.
     overlap_proteins = harvest_proteins & bdb_proteins
     new_proteins = harvest_proteins - bdb_proteins
 
@@ -197,7 +195,7 @@ def load_data_from_parquet(harvest_path: Path, bdb_path: Path):
     df_overlap = pd.DataFrame(overlap_rows) if overlap_rows else pd.DataFrame(
         columns=['protein', 'n_harvest_only_compounds',
                  'n_harvest_overlap_compounds',
-                 'n_harvest_only_clusters', 'n_shared_clusters',
+                 'n_harvest_only_clusters',
                  'n_buffer_compounds', 'n_buffer_clusters'])
 
     # ── New proteins: in HARVEST but not in BDB ──
