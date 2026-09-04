@@ -122,8 +122,8 @@ def cluster_proteins_by_sequence(proteins, df_harvest, identity_threshold=0.4):
     Returns dict {protein_accession: cluster_representative}.
     Falls back to identity mapping (no filtering) if MMseqs2 fails.
     """
-    mmseqs_bin = shutil.which('mmseqs') or '/opt/homebrew/bin/mmseqs'
-    if not os.path.isfile(mmseqs_bin):
+    mmseqs_bin = shutil.which('mmseqs')
+    if not mmseqs_bin or not os.path.isfile(mmseqs_bin):
         print("  WARNING: mmseqs not found, skipping sequence diversity filter")
         return {p: p for p in proteins}
 

@@ -1112,7 +1112,7 @@ def main():
     data_group.add_argument("--data-dir", default="cluster_split/split_v14",
                             help="Directory containing df_new_protein_stats.csv and "
                                  "df_overlap_stats.csv (legacy)")
-    parser.add_argument("--bdb", default="../../projects/patents/full_bdb_chembl_fix.parquet",
+    parser.add_argument("--bdb", default="full_bdb_chembl_fix.parquet",
                         help="Path to BDB parquet file")
     parser.add_argument("--chembl", default="curated_data/target_info_chembl.csv.gz",
                         help="Path to ChEMBL target info CSV")

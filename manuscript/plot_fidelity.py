@@ -19,8 +19,9 @@ the figures. Matching key ("config C"): TARGET = UniProt entry-name (per-patent,
 expansion); COMPOUND = InChIKey connectivity[:14], row-level OR (gold over its 4 arms, HARVEST
 InChIKey(clean_smiles), BindingDB inchi_cut).
 
-Inputs (set $HARVEST_DATA_DIR; default below): final_v16_clean.parquet,
-full_bdb_chembl_fix.parquet, patent_mapping.csv. Reference: curated_data/manual_reference.csv.
+Inputs (set $HARVEST_DATA_DIR; defaults to the repo root): final_v16_clean.parquet,
+full_bdb_chembl_fix.parquet. Patent map: curated_data/patent_mapping.csv.
+Reference: curated_data/manual_reference.csv.
 Molecular weight / synthetic accessibility are cached to parquet on first run.
 
 Run:  python make_figures.py
@@ -38,13 +39,13 @@ from rdkit.Chem import Descriptors
 RDLogger.DisableLog('rdApp.*')
 
 # ----------------------------------------------------------------------------- paths / constants
-DATA = os.environ.get('HARVEST_DATA_DIR', '/home/aibulat/tasks/bioactivity')
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(HERE)
+DATA = os.environ.get('HARVEST_DATA_DIR', REPO_ROOT)
 REFERENCE = os.environ.get('HARVEST_REFERENCE', f'{REPO_ROOT}/curated_data/manual_reference.csv')
 HARV = os.environ.get('HARVEST_PARQUET', f'{DATA}/final_v16_clean.parquet')
 BDB = os.environ.get('HARVEST_BDB_PARQUET', f'{DATA}/full_bdb_chembl_fix.parquet')
-PMAP = os.environ.get('HARVEST_PATENT_MAP', f'{DATA}/patent_mapping.csv')
+PMAP = os.environ.get('HARVEST_PATENT_MAP', f'{REPO_ROOT}/curated_data/patent_mapping.csv')
 IKCACHE = f'{DATA}/harvest_inchikey_clean_cache.parquet'     # optional (clean_smiles -> InChIKey); regenerable
 FIGS = os.environ.get('HARVEST_FIG_DIR', f'{HERE}/figs')
 PROPCACHE = f'{HERE}/quality_fig_props_cache.parquet'         # smiles -> mw, sa (built on first run)

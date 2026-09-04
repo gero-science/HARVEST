@@ -276,9 +276,9 @@ def process_overlap_proteins(df_6k, df_bd, overlap_proteins, smiles_col_harvest,
 def main():
     parser = argparse.ArgumentParser(
         description='Per-protein clustering and split analysis')
-    parser.add_argument('--harvest', default='../../projects/patents/6k_nov21/final_v1/final_v10_clean_smiles.parquet',
+    parser.add_argument('--harvest', default='final_v16_clean.parquet',
                         help='Path to harvest parquet file')
-    parser.add_argument('--bdb', default='../../projects/patents/full_bdb_chembl_fix.parquet',
+    parser.add_argument('--bdb', default='full_bdb_chembl_fix.parquet',
                         help='Path to BDB parquet file (must have uniprot_acc and smiles columns)')
     parser.add_argument('--output-dir', default='cluster_split/output',
                         help='Output directory for all results')
