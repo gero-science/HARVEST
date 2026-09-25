@@ -57,6 +57,8 @@ Usage examples:
 
 4. Run from a config file:
    python pipeline.py --config configs/pipeline.example.yaml
+
+When --stages is omitted, the default is extract,proteins,export (no verify or postprocess).
 """
     )
 

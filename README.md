@@ -218,7 +218,8 @@ Useful flags:
 
 ```bash
 --stages extract                         # step 1 only
---stages extract,proteins,verify,export  # steps 1-4 (the default when omitted)
+--stages extract,proteins,export         # steps 1-3 (the default when omitted)
+--stages extract,proteins,verify,export  # steps 1-4 with hallucination sidecars
 --stages all                             # steps 1-5, adding final_postprocessing
 --stages export                          # re-export an existing results directory
 --stages export,postprocess              # rebuild the Parquet, no LLM calls

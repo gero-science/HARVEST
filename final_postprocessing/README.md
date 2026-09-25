@@ -3,7 +3,7 @@
 Optional steps after `export_table.py` produces `main_res.parquet`. Run them
 separately when you want a `final_v16_clean`-style table, or as the `postprocess`
 stage of `pipeline.py` (`--stages all`, or `postprocess` in a run config). They
-are **not** part of the default `extract,proteins,verify,export` run.
+are **not** part of the default `extract,proteins,export` run.
 
 `add_final_structure.py` is intentionally **not** included in the one-command
 runner (it adds a newer `final_smiles` / `final_inchikey` layer).
