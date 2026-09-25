@@ -224,7 +224,7 @@ def main():
         description="Plot HARVEST vs BindingDB comparison statistics")
     parser.add_argument(
         "--harvest",
-        default="final_v16_clean.parquet",
+        required=True,
         help="Path to HARVEST parquet file")
     parser.add_argument(
         "--bdb",

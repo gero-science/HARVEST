@@ -709,14 +709,11 @@ def plot_tanimoto_aggregate(proteins, output_path):
 
 
 # ── Main ───────────────────────────────────────────────────────────────────
-DEFAULT_HARVEST = Path(
-    'final_v16_clean.parquet'
-)
 DEFAULT_SPLIT = Path(__file__).resolve().parent / 'split_v14'
 
 def main():
     parser = argparse.ArgumentParser(description='Select representative proteins')
-    parser.add_argument('--harvest', default=str(DEFAULT_HARVEST),
+    parser.add_argument('--harvest', required=True,
                         help='Path to harvest parquet')
     parser.add_argument('--split-dir', default=str(DEFAULT_SPLIT),
                         help='Path to harvest parquet')
