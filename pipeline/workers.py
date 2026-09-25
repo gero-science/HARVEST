@@ -278,6 +278,7 @@ async def worker_agent2_aggregator(
                     'stage': 'agent2_processing_error'
                 })
                 logging.error(f"Patent {patent_id} incomplete due to Agent 2 error: {result}")
+                detailed_error_count += 1
         
         logging.info("All Agent 2 tasks completed!")
     
