@@ -8,8 +8,8 @@ reports reclassifications.
 
 Usage:
     python cluster_split/compare_novel_proteins.py \
-      --harvest ../../projects/patents/6k_nov21/final_v1/final_v10_clean_smiles.parquet \
-      --bdb ../../projects/patents/full_bdb_chembl_fix.parquet \
+      --harvest path/to/harvest.parquet \
+      --bdb full_bdb_chembl_fix.parquet \
       --output cluster_split/uniref90_reclassification_report.csv
 """
 
@@ -242,11 +242,10 @@ def print_summary(proteins_harvest, proteins_bdb, new_proteins, overlap_proteins
 def main():
     parser = argparse.ArgumentParser(
         description='UniRef90-aware novel protein reclassification report')
-    parser.add_argument('--harvest',
-                        default='../../projects/patents/6k_nov21/final_v1/final_v10_clean_smiles.parquet',
+    parser.add_argument('--harvest', required=True,
                         help='Path to harvest parquet file')
     parser.add_argument('--bdb',
-                        default='../../projects/patents/full_bdb_chembl_fix.parquet',
+                        default='full_bdb_chembl_fix.parquet',
                         help='Path to BDB parquet file')
     parser.add_argument('--output',
                         default='cluster_split/uniref90_reclassification_report.csv',
