@@ -224,15 +224,15 @@ def main():
         description="Plot HARVEST vs BindingDB comparison statistics")
     parser.add_argument(
         "--harvest",
-        default="final_v16_clean.parquet",
+        required=True,
         help="Path to HARVEST parquet file")
     parser.add_argument(
         "--bdb",
-        default="../../projects/patents/full_bdb_chembl_fix.parquet",
+        default="full_bdb_chembl_fix.parquet",
         help="Path to BDB parquet file")
     parser.add_argument(
         "--patent-mapping",
-        default="../../projects/patents/patent_mapping.csv",
+        default="curated_data/patent_mapping.csv",
         help="Path to patent mapping CSV")
     parser.add_argument(
         "--output",

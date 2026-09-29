@@ -1112,7 +1112,7 @@ def main():
     data_group.add_argument("--data-dir", default="cluster_split/split_v14",
                             help="Directory containing df_new_protein_stats.csv and "
                                  "df_overlap_stats.csv (legacy)")
-    parser.add_argument("--bdb", default="../../projects/patents/full_bdb_chembl_fix.parquet",
+    parser.add_argument("--bdb", default="full_bdb_chembl_fix.parquet",
                         help="Path to BDB parquet file")
     parser.add_argument("--chembl", default="curated_data/target_info_chembl.csv.gz",
                         help="Path to ChEMBL target info CSV")
@@ -1122,8 +1122,9 @@ def main():
                         help="Min proteins in L2 class before collapsing to Other")
     parser.add_argument("--min-l1-proteins", type=int, default=50,
                         help="Min proteins in L1 class before collapsing to Other")
-    parser.add_argument("--harvest-parquet", default="final_v16_clean.parquet",
-                        help="HARVEST parquet (used for PLIs/patent panel)")
+    parser.add_argument("--harvest-parquet", default=None,
+                        help="HARVEST parquet (used for PLIs/patent panel; required "
+                             "with --data-dir unless --harvest is set)")
     parser.add_argument("--splits-dir",
                         default="cluster_split/split_v14/splits",
                         help="Directory with per-protein split_results_<UNIPROT>.csv "
@@ -1149,12 +1150,12 @@ def main():
     bdb_path = Path(args.bdb)
     output_path = Path(args.output) if args.output else Path("manuscript/stats_pies.png")
 
-    # When --harvest is used, panels (e)/(f) should read the same parquet
-    # unless --harvest-parquet is explicitly given.
     if args.harvest:
         harvest_path = Path(args.harvest)
-    else:
+    elif args.harvest_parquet:
         harvest_path = Path(args.harvest_parquet)
+    else:
+        parser.error("pass --harvest or --harvest-parquet (path to the HARVEST parquet)")
 
     if args.harvest:
         df_new, df_overlap, n_new_proteins, n_overlap_proteins, n_bdb_only_proteins = \
