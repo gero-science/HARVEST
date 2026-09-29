@@ -453,11 +453,21 @@ the final Parquet export.
 - `uspto_download/` — fetch USPTO bulk archives and split them into patent ZIPs
 - `scripts/` — setup tooling (`download_protein_data.py`)
 - `curated_data/` — reference data for cross-validation and mapping
+- `tests/` — unit tests (see [`tests/README.md`](tests/README.md))
 
 **Benchmark code** (legacy H-bench):
 
 - `allocate_training.py` — training-set leakage checker
 - `data/h_bench/` — curated H-bench CSVs (48 targets)
+
+## Tests
+
+```bash
+pip install -r requirements-dev.txt
+pytest -q
+```
+
+Tests use small in-memory fixtures only (no multi-GB patent corpora in the repo).
 
 ## License
 
