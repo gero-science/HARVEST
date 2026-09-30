@@ -17,6 +17,8 @@ output:
 
 # Canonical order: extract -> proteins -> verify -> export -> postprocess.
 # Any subset is allowed; 'all' is a shortcut for all five stages.
+# This example includes verify; the CLI default (no --config / no stages) is
+# extract, proteins, export only — add verify when you have a patent ZIP directory.
 stages: [extract, proteins, verify, export, postprocess]
 
 common:

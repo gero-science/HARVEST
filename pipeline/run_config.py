@@ -13,9 +13,10 @@ from typing import Any, Optional
 
 STAGES: tuple[str, ...] = ("extract", "proteins", "verify", "export", "postprocess")
 
-# Stages run when none are requested: everything except ``postprocess``, which
-# is opt-in via ``--stages all``.
-DEFAULT_STAGES: tuple[str, ...] = ("extract", "proteins", "verify", "export")
+# Stages when none are requested via CLI or config. ``verify`` needs a patent ZIP
+# directory (not always derivable from input) and ``postprocess`` is heavy cleanup;
+# both are opt-in via ``--stages``, config ``stages``, or ``all``.
+DEFAULT_STAGES: tuple[str, ...] = ("extract", "proteins", "export")
 
 LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR")
 

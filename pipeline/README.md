@@ -44,7 +44,7 @@ A run is a sequence of stages over one output directory, in this canonical order
 | `postprocess` | [`final_postprocessing`](../final_postprocessing/) chain | `main_res_clean.parquet` |
 
 Stage selection precedence: `--stages` > `--from-stage` > `stages` in the config
-file > the default, `extract,proteins,verify,export`. `--from-stage X` runs X and
+file > the default, `extract,proteins,export`. `--from-stage X` runs X and
 every later stage, `postprocess` included.
 
 Before anything runs, artifacts of stages that are *not* part of the run are

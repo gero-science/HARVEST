@@ -47,9 +47,6 @@ async def worker_agent1(queue_in, queue_out, config_agent1, debug_mode=False, ou
     llm = LLM.from_config(config_agent1, logging.getLogger(__name__), debug_mode, output_dir)
     extractor = BioactivityExtractor(config_agent1, llm)
     
-    # Per-worker error counters
-    worker_error_stats = create_empty_error_stats()
-    
     try:
         while True:
             task = await queue_in.get()
@@ -61,11 +58,10 @@ async def worker_agent1(queue_in, queue_out, config_agent1, debug_mode=False, ou
                 
             except Exception as e:
                 error_type, error_detail = build_agent1_error_detail(task, e)
-                worker_error_stats[error_type] += 1
                 
                 logging.error(f"[Agent1] Error processing chunk for {task.patent_id}: {type(e).__name__}: {e}")
                 logging.debug(f"[Agent1] Classified as {error_type}")
-                await queue_out.put(build_agent1_error_payload(task, worker_error_stats, error_detail))
+                await queue_out.put(build_agent1_error_payload(task, error_type, error_detail))
     finally:
         # Close the aiohttp session when the worker exits
         await llm.close()
@@ -278,6 +274,7 @@ async def worker_agent2_aggregator(
                     'stage': 'agent2_processing_error'
                 })
                 logging.error(f"Patent {patent_id} incomplete due to Agent 2 error: {result}")
+                detailed_error_count += 1
         
         logging.info("All Agent 2 tasks completed!")
     

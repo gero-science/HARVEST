@@ -218,7 +218,8 @@ Useful flags:
 
 ```bash
 --stages extract                         # step 1 only
---stages extract,proteins,verify,export  # steps 1-4 (the default when omitted)
+--stages extract,proteins,export         # steps 1-3 (the default when omitted)
+--stages extract,proteins,verify,export  # steps 1-4 with hallucination sidecars
 --stages all                             # steps 1-5, adding final_postprocessing
 --stages export                          # re-export an existing results directory
 --stages export,postprocess              # rebuild the Parquet, no LLM calls
@@ -452,11 +453,21 @@ the final Parquet export.
 - `uspto_download/` — fetch USPTO bulk archives and split them into patent ZIPs
 - `scripts/` — setup tooling (`download_protein_data.py`)
 - `curated_data/` — reference data for cross-validation and mapping
+- `tests/` — unit tests (see [`tests/README.md`](tests/README.md))
 
 **Benchmark code** (legacy H-bench):
 
 - `allocate_training.py` — training-set leakage checker
 - `data/h_bench/` — curated H-bench CSVs (48 targets)
+
+## Tests
+
+```bash
+pip install -r requirements-dev.txt
+pytest -q
+```
+
+Tests use small in-memory fixtures only (no multi-GB patent corpora in the repo).
 
 ## License
 
