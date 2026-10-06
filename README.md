@@ -66,7 +66,7 @@ Some chemistry helpers rely on RDKit and OPSIN (installed via requirements).
 ## Configuration
 
 Configuration is read from environment variables (see `llm/config.py` for the
-model settings and `pipeline/config.py` for worker counts). Copy `.env.example`
+model settings and `pipeline/config.py` for worker counts). Copy `.env.example` (parameters used in this work)
 to `.env` and fill in your values:
 
 ```bash
@@ -75,21 +75,32 @@ cp .env.example .env
 
 Key variables:
 
-- `LLM_KEY`, `LLM_URL`, `LLM_MODEL`, `LLM_TEMPERATURE`
-- `PROTEIN_LLM_MODEL` - the `proteins` stage runs on its own model (default
-  `openai/gpt-5.1`), so it does not follow `LLM_MODEL`
-- `LLM_API_RETRY_ATTEMPTS`, `LLM_API_RETRY_DELAY`
-- `PIPELINE_MAX_WORKERS`, `PIPELINE_QUEUE_SIZE`
-- optional OpenRouter provider settings
-- optional direct Gemini API via `USE_GOOGLE_DIRECT`
+- `LLM_KEY` - [Openrouter](https://openrouter.ai/) API key for LLM queries
+- `USPTO_TOKEN` - [USPTO](https://data.uspto.gov/home) API token
 
-For extraction quality a low temperature is expected, usually
-`LLM_TEMPERATURE=0`.
+## Input data
 
-## Input data (not included)
+Patent corpora and protein reference data are NOT part of this repository —
+you either bring your own or use the small benchmark included via Git LFS.
 
-Patent corpora and protein reference data are NOT part of this repository. You
-need to provide them locally. Patents can be fetched from USPTO with
+**Quick start with the benchmark dataset** — 109 patent ZIPs drawn from the
+reference set in `curated_data/manual_reference.csv`, stored in
+`data/benchmark/reference_patents.zip`. Pull it once after cloning:
+
+```bash
+git lfs install   # first time only
+git lfs pull
+```
+
+Then unpack and point the pipeline at the extracted directory:
+
+```bash
+unzip data/benchmark/reference_patents.zip -d data/benchmark/patents
+# Note: you still need an API key for Openrouter
+python pipeline.py --input-path data/benchmark/patents --output-dir results/benchmark --stages all
+```
+
+**For larger or custom runs**, fetch your own patent data from USPTO with
 [`uspto_download/`](#getting-patents-from-uspto); protein data must be
 downloaded separately.
 
@@ -111,19 +122,12 @@ That downloads Swiss-Prot from the UniProt current release (~90 MB compressed,
 `data/protein_data/uniprot_sprot.fasta`. It skips the download when the file is
 already there, so it is safe to re-run; pass `--force` to refresh it.
 
-That single file is what the protein step needs. `protein_postprocessor` loads
-it through `FastaGeneResolver` (see `UNIPROT_FASTA_PATH` in
-[`protein_postprocessor/config_postprocess.py`](protein_postprocessor/config_postprocess.py))
-to look up a sequence by gene symbol and species. The `proteins` stage checks
-for it up front and stops with a pointer to the script if it is absent, rather
-than failing after extraction has already spent LLM budget.
-
-Older instructions also asked for `HUMAN_9606_idmapping.dat`,
-`MOUSE_10090_idmapping.dat` and `RAT_10116_idmapping.dat`. Those were read only
-by the legacy `ProteinResolver`, which has been removed — no code reads them
-now, so they are no longer needed.
 
 ## Getting patents from USPTO
+
+> **Don't need the full corpus?** The benchmark dataset bundled via Git LFS
+> (`data/benchmark/reference_patents.zip`, 109 patents) is enough to run
+> the pipeline end-to-end locally. See [Input data](#input-data) above.
 
 The pipeline consumes one ZIP per patent, each holding the patent XML and any
 embedded MOL structure files. USPTO does not publish patents that way — it
@@ -132,7 +136,7 @@ publishes large bulk archives — so this is a two-step process.
 ### 1. Get an API key
 
 Bulk downloads go through the USPTO Open Data Portal, which requires a free API
-key. Request one at
+key (but you might be asked to verify your ID during video call). Request one at
 [data.uspto.gov/apis/getting-started](https://data.uspto.gov/apis/getting-started)
 and set `USPTO_TOKEN`, either in `.env` alongside the LLM settings:
 
@@ -212,7 +216,7 @@ Useful flags:
   are written on every successful run, with or without it.
 - `--stages extract`: run only this step, leaving the per-patent
   `*_resolved.json` files for steps 2 and 3 to consume. Omit `--stages` and the
-  run defaults to `extract,proteins,export`, doing steps 1-3 in one command.
+  run defaults to `extract,proteins,verify,export`, doing steps 1-4 in one command.
 
 `--stages` takes a comma-separated list, or `all`:
 
@@ -224,9 +228,8 @@ Useful flags:
 --stages export,postprocess              # rebuild the Parquet, no LLM calls
 ```
 
-`extract` and `proteins` are the only stages that call an LLM. To rebuild the
-Parquet from a directory of released per-patent results, run `verify` to produce
-the `_hallu.json` sidecars and then export:
+`extract` and `proteins` are the only stages that call an LLM and require an openrouter key. To rebuild the
+Parquet from a directory of released per-patent results, run `verify` to filter possible hallucinations and then export:
 
 ```bash
 python pipeline.py \
@@ -239,12 +242,7 @@ python pipeline.py \
 The `verify` stage writes per-patent `_hallu.json` sidecars that the `export`
 stage reads to drop hallucinated rows at build time. It needs the patent ZIP
 directory (`--verify-source-dir`, or `input.path` when running the full
-pipeline). Sidecars already on disk are skipped, so the cost is paid only once.
-
-This needs no API key and no `.env`: credentials are required only when a stage
-actually builds an LLM client. `--output-dir` is both the input and the output
-here — the export reads the `*_resolved.json` files already in it and writes
-`main_res.parquet` and `main_res_clean.parquet` alongside them.
+pipeline). Sidecars already on disk are skipped.
 
 See [Whole run in one command](#whole-run-in-one-command) for `--from-stage` and
 for driving the same choice from a config file.
