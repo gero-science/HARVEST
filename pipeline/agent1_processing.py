@@ -91,8 +91,9 @@ def build_agent1_error_detail(task, error):
     }
 
 
-def build_agent1_error_payload(task, worker_error_stats, error_detail):
+def build_agent1_error_payload(task, error_type, error_detail):
     zip_file_path = getattr(task, "zip_file_path", "")
+    error_increment = {error_type: 1}
     return (
         task.patent_id,
         [],
@@ -100,7 +101,7 @@ def build_agent1_error_payload(task, worker_error_stats, error_detail):
         task.patent_text,
         empty_agent1_usage(),
         task.document,
-        worker_error_stats.copy(),
+        error_increment,
         error_detail,
         zip_file_path,
     )

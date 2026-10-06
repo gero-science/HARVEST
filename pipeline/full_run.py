@@ -41,6 +41,37 @@ def has_resolved_patents(output_dir: str | Path) -> bool:
     return any(root.glob("*/*_resolved.json"))
 
 
+def _resolve_verify_source_dir(config: PipelineRunConfig) -> str | None:
+    """Derive the patent ZIP directory for the verify stage.
+
+    Resolution order:
+    1. Explicit ``verify.source_dir`` (config or ``--verify-source-dir``).
+    2. ``input_path`` — if it is a directory, use it directly; if it is a
+       ZIP file, use its parent directory.
+    3. ``input_list`` — read the first entry and use its parent directory.
+    """
+    if config.verify.source_dir:
+        return config.verify.source_dir
+
+    if config.input_path:
+        p = Path(config.input_path)
+        if p.is_dir():
+            return str(p)
+        if p.is_file():
+            return str(p.parent)
+        return str(p)
+
+    if config.input_list:
+        list_path = Path(config.input_list)
+        if list_path.is_file():
+            with open(list_path, encoding="utf-8") as fh:
+                for line in fh:
+                    entry = line.strip()
+                    if entry and not entry.startswith("#"):
+                        return str(Path(entry).parent)
+    return None
+
+
 def validate_stage_inputs(config: PipelineRunConfig, stages: tuple[str, ...]) -> None:
     """Check artifacts of stages that are not part of this run."""
     needs_extraction = "proteins" in stages or "verify" in stages or "export" in stages
@@ -49,6 +80,20 @@ def validate_stage_inputs(config: PipelineRunConfig, stages: tuple[str, ...]) ->
             raise StageError(
                 f"No *_resolved.json found in {config.output_dir}: "
                 "run the 'extract' stage first or point --output-dir at an existing run"
+            )
+
+    if "verify" in stages:
+        source_dir = _resolve_verify_source_dir(config)
+        if not source_dir:
+            raise StageError(
+                "The 'verify' stage needs a patent ZIP directory but none could "
+                "be derived. Set verify.source_dir in the config, use "
+                "--verify-source-dir, or provide --input-path."
+            )
+        source_path = Path(source_dir)
+        if source_path.exists() and not source_path.is_dir():
+            raise StageError(
+                f"Verify source must be a directory, got file: {source_path}"
             )
 
     if "postprocess" in stages and "export" not in stages:
@@ -196,13 +241,12 @@ async def _stage_proteins(config: PipelineRunConfig) -> dict[str, Any]:
 async def _stage_verify(config: PipelineRunConfig) -> dict[str, Any]:
     from verify_llm_res import annotate_all
 
-    settings = config.verify
-    source_dir = settings.source_dir or config.input_path
+    source_dir = _resolve_verify_source_dir(config)
     if not source_dir:
         raise StageError(
             "The 'verify' stage needs the patent ZIP directory. "
             "Set verify.source_dir in the config, or use --verify-source-dir, "
-            "or let it default from input.path."
+            "or let it default from input.path / input.list."
         )
     source_path = Path(source_dir)
     if not source_path.is_dir():
@@ -212,9 +256,9 @@ async def _stage_verify(config: PipelineRunConfig) -> dict[str, Any]:
         annotate_all,
         config.output_dir,
         source_dir,
-        workers=settings.workers,
-        force=settings.force,
-        force_hallu=settings.force_hallu,
+        workers=config.verify.workers,
+        force=config.verify.force,
+        force_hallu=config.verify.force_hallu,
     )
 
     if summary["failed"] == summary["total"] and summary["total"] > 0:

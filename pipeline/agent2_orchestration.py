@@ -12,7 +12,6 @@ from .agent2_processing import (
     build_resolved_details,
     calculate_molecule_resolution_stats,
     count_valid_chemistry_nodes,
-    empty_agent2_usage,
     log_agent2_usage,
     resolve_aliases_for_patent,
     update_agent2_data_counts,
@@ -21,10 +20,6 @@ from .agent2_processing import (
 from .artifacts import save_patent_result_artifacts
 from .debug_artifacts import save_debug_data
 from .statistics import save_patent_statistics
-
-
-def _empty_agent2_usage_on_error():
-    return empty_agent2_usage()
 
 
 def _log_preprocess_debug(patent_id, measures_list, chemistry_nodes, valid_nodes, debug_mode):
@@ -132,8 +127,6 @@ def _handle_agent2_error(patent_id, error, detailed_error_log):
     error_detail = build_agent2_error_detail(patent_id, error)
     append_error_detail(detailed_error_log, error_detail)
 
-    return patent_id, 0, 0, _empty_agent2_usage_on_error()
-
 
 async def process_patent_agent2(
     patent_id,
@@ -201,4 +194,5 @@ async def process_patent_agent2(
         return patent_id, len(resolved), len(unresolved), agent2_usage
 
     except Exception as e:
-        return _handle_agent2_error(patent_id, e, detailed_error_log)
+        _handle_agent2_error(patent_id, e, detailed_error_log)
+        raise
