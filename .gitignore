@@ -175,6 +175,7 @@ cython_debug/
 data_parquet/
 results/
 data/
+!data/benchmark/
 
 # Local shelve caches for ligand enrichment (see bindingdb_export/processing.py)
 cache/
