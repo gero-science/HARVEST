@@ -38,7 +38,10 @@ async def run_pipeline_async(
         clear_global_failed_requests_log()
     
     logging.info("Starting FULLY ASYNCHRONOUS pipeline")
-    logging.info(f"Files to process: {len(input_paths)}")
+    if limit:
+        logging.info(f"Files to process: {len(input_paths)} (limit: {limit})")
+    else:
+        logging.info(f"Files to process: {len(input_paths)}")
     logging.info(f"Output directory: {output_dir}")
     logging.info(f"Maximum workers: {ConfigPipeline.MAX_WORKERS}")
     

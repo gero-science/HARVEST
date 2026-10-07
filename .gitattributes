@@ -1,1 +1,2 @@
 data/benchmark/*.zip filter=lfs diff=lfs merge=lfs -text
+data/full_bdb_chembl_fix.parquet filter=lfs diff=lfs merge=lfs -text

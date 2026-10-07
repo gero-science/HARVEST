@@ -172,35 +172,14 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
-data_parquet/
 results/
 data/
 !data/benchmark/
 
-# Local shelve caches for ligand enrichment (see bindingdb_export/processing.py)
-cache/
-enrich_data/output/
-inchi_key_cache.db
-sequence_cache.db
-smiles_cache.db
 
-# Boltz local secrets (copy from runpod_setup.env.example)
-boltz/runpod_setup.env
+
 .cursor/
-mol_test.txt
-no_alias_patents.txt
-problematic_patents_zips.txt
-fixim_patenti.txt
-bug_105.txt
-
 .idea/
-dublications.txt
-matched_2010-2014_3001-to-6000_patents.txt
-matched_2010-2014_patents.txt
-unique_application_numbers.txt
-unprocessed_2010-2014_patents.txt
-patents_next_paths.txt
-remaining_patents.txt
 .agents/
 .claude/
 .codex/

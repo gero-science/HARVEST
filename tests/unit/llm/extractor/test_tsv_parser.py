@@ -1,5 +1,46 @@
 """Tests for TSV part parsing/merging and header guarantees (bioactivity_extraction.tsv)."""
 
+from bioactivity_extraction.tsv import strip_markdown_fences
+
+
+class TestStripMarkdownFences:
+    def test_removes_tsv_fence(self):
+        text = "```tsv\nheader1\theader2\nval1\tval2\n```"
+        assert strip_markdown_fences([text]) == ["header1\theader2\nval1\tval2"]
+
+    def test_removes_plain_fence(self):
+        text = "```\nheader1\theader2\nval1\tval2\n```"
+        assert strip_markdown_fences([text]) == ["header1\theader2\nval1\tval2"]
+
+    def test_no_fence_unchanged(self):
+        text = "header1\theader2\nval1\tval2"
+        assert strip_markdown_fences([text]) == [text]
+
+    def test_empty_string(self):
+        assert strip_markdown_fences([""]) == [""]
+
+    def test_multiple_responses(self):
+        texts = [
+            "```tsv\nA\tB\n1\t2\n```",
+            "3\t4",
+            "```\n5\t6\n```",
+        ]
+        result = strip_markdown_fences(texts)
+        assert result == ["A\tB\n1\t2", "3\t4", "5\t6"]
+
+    def test_fence_with_language_tag(self):
+        text = "```csv\nA,B\n1,2\n```"
+        assert strip_markdown_fences([text]) == ["A,B\n1,2"]
+
+    def test_only_fences_returns_empty(self):
+        text = "```tsv\n```"
+        assert strip_markdown_fences([text]) == [""]
+
+    def test_nested_backticks_in_data_preserved(self):
+        text = "```tsv\nname\tvalue\n`compound`\t10\n```"
+        result = strip_markdown_fences([text])
+        assert "`compound`" in result[0]
+
 
 def test_merge_tsv_parts_uses_header_from_first_part_for_continuations(make_agent):
     parts = ["a\tb\n1\t2", "3\t4"]

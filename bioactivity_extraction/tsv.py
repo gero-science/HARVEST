@@ -3,6 +3,19 @@ from io import StringIO
 from typing import Dict, List
 
 
+def strip_markdown_fences(tsv_responses: List[str]) -> List[str]:
+    """Remove markdown code fences that LLMs sometimes wrap around TSV output."""
+    cleaned = []
+    for text in tsv_responses:
+        lines = text.split("\n")
+        while lines and lines[0].strip().startswith("```"):
+            lines.pop(0)
+        while lines and lines[-1].strip().startswith("```"):
+            lines.pop()
+        cleaned.append("\n".join(lines))
+    return cleaned
+
+
 def merge_tsv_parts(tsv_parts: List[str], stage_name: str, patent_id: str = "", logger=None) -> List[Dict]:
     """Parse and merge multi-part TSV responses."""
     log_prefix = f"{stage_name} [{patent_id}]" if patent_id else stage_name

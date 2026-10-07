@@ -133,7 +133,10 @@ async def _stage_extract(config: PipelineRunConfig) -> dict[str, Any]:
     from .core import run_pipeline_async
 
     input_paths = await collect_input_paths(config)
-    logging.info(f"Extraction input files: {len(input_paths)}")
+    if config.limit:
+        logging.info(f"Extraction input files: {len(input_paths)} (limit: {config.limit})")
+    else:
+        logging.info(f"Extraction input files: {len(input_paths)}")
 
     try:
         incomplete_patents = await run_pipeline_async(

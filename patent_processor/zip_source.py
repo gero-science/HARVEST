@@ -471,6 +471,8 @@ class ZipPatentSource:
 
         try:
             title = str(xml_root.xpath('normalize-space(string(//invention-title))'))
+            if not title:
+                title = str(xml_root.xpath('normalize-space(string(//title-of-invention))'))
             return title
 
         except Exception:

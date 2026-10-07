@@ -92,13 +92,33 @@ git lfs install   # first time only
 git lfs pull
 ```
 
-Then unpack and point the pipeline at the extracted directory:
+Then unpack, download protein reference data, and run the full pipeline:
 
 ```bash
 unzip data/benchmark/reference_patents.zip -d data/benchmark/patents
+python scripts/download_protein_data.py          # ~2 GB UniProt FASTA, needed for the proteins stage
 # Note: you still need an API key for Openrouter
 python pipeline.py --input-path data/benchmark/patents --output-dir results/benchmark --stages all
 ```
+
+> **Expect ~15 min and ~$14 in LLM costs** for the full 109-patent benchmark.
+
+The benchmark patents are the same 109 used for Figure 3(f) in the paper.
+To reproduce quality metrics after the run, score extraction fidelity against
+the curated reference:
+
+```bash
+HARVEST_PARQUET=results/benchmark/main_res_clean.parquet \
+  python manuscript/plot_fidelity.py
+```
+
+This scores per-patent recall and precision for compound, target,
+compound+target, and compound+target+value against the curated reference
+and writes `manuscript/figs/fig_fidelity.png`. Expected publication numbers
+from panel (f): compound recall 0.82, target 0.93, compound+target 0.76,
+compound+target+value 0.71. Supply `$HARVEST_BDB_PARQUET` to also produce
+the full 6-panel quality figure (panels a–e need BindingDB data) — see
+[Step 7](#step-7--manuscript-figures-and-tables).
 
 **For larger or custom runs**, fetch your own patent data from USPTO with
 [`uspto_download/`](#getting-patents-from-uspto); protein data must be
@@ -122,6 +142,11 @@ That downloads Swiss-Prot from the UniProt current release (~90 MB compressed,
 `data/protein_data/uniprot_sprot.fasta`. It skips the download when the file is
 already there, so it is safe to re-run; pass `--force` to refresh it.
 
+**BindingDB reference dataset** — `data/full_bdb_chembl_fix.parquet` (~482 MB,
+Git LFS) is a curated BindingDB+ChEMBL reference table used for quality
+comparisons (manuscript figures), cross-validation, and novelty annotation.
+It is pulled automatically with `git lfs pull` alongside the benchmark
+patents.
 
 ## Getting patents from USPTO
 
@@ -365,8 +390,11 @@ python manuscript/cross_validation.py --harvest <build.parquet> --bdb <bdb.parqu
 `plot_fidelity.py` produces the quality and fidelity figures (paper Figure 3):
 distribution comparisons (molecular weight, affinity, synthetic accessibility)
 against BindingDB, activity-value residuals, and extraction fidelity scored
-against `curated_data/manual_reference.csv`. Set `$HARVEST_DATA_DIR` to the
-directory holding the build and BindingDB parquets.
+against `curated_data/manual_reference.csv`. By default it looks for
+`results/main_res_clean.parquet` (HARVEST) and
+`data/full_bdb_chembl_fix.parquet` (BindingDB); override with
+`$HARVEST_PARQUET` / `$HARVEST_BDB_PARQUET`, or set `$HARVEST_DATA_DIR` to a
+directory holding both.
 
 `cross_validation.py` compares HARVEST against BindingDB on shared US patents,
 matching by InChI Key connectivity and UniProt accessions, and prints both a

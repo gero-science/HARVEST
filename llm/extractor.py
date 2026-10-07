@@ -31,12 +31,14 @@ from bioactivity_extraction.stage3_cleanup import (
 )
 from bioactivity_extraction.stage_merge import merge_with_assay_id
 from bioactivity_extraction.structure_enrichment import enrich_with_smiles
-from bioactivity_extraction.tsv import ensure_header_in_tsv, merge_tsv_parts
+from bioactivity_extraction.tsv import ensure_header_in_tsv, merge_tsv_parts, strip_markdown_fences
 from bioactivity_extraction.usage import prepare_usage_stats_list
 from bioactivity_extraction.validation import validate_item
 from bioactivity_extraction.xml_sections import extract_relevant_xml_sections
 
 try:
+    import warnings
+    warnings.filterwarnings("ignore", category=RuntimeWarning, module=r"py2opsin\.py2opsin")
     from py2opsin import py2opsin
     PY2OPSIN_AVAILABLE = True
 except ImportError:
@@ -210,8 +212,9 @@ class BioactivityExtractor:
         return stage1_response, stage1_usage
 
     def _parse_stage1_assays(self, stage1_response: str, patent_id: str) -> List[Dict]:
+        stage1_response_list = strip_markdown_fences([stage1_response])
         stage1_response_list = self._ensure_header_in_tsv(
-            [stage1_response], StageFormats.STAGE1_HEADER, "Stage 1", patent_id
+            stage1_response_list, StageFormats.STAGE1_HEADER, "Stage 1", patent_id
         )
         stage1_assays_raw = self._merge_tsv_parts(stage1_response_list, "Stage 1", patent_id)
         return self._deduplicate_stage1_assays(stage1_assays_raw)
@@ -256,6 +259,7 @@ class BioactivityExtractor:
             stage_name="Stage 2",
             expected_columns=StageFormats.STAGE2_COLUMN_COUNT,
         )
+        stage2_responses = strip_markdown_fences(stage2_responses)
         stage2_responses = self._ensure_header_in_tsv(
             stage2_responses, StageFormats.STAGE2_HEADER, "Stage 2", patent_id
         )
@@ -326,6 +330,7 @@ class BioactivityExtractor:
             stage_name="Stage 3",
             expected_columns=StageFormats.STAGE3_COLUMN_COUNT,
         )
+        stage3_responses = strip_markdown_fences(stage3_responses)
         stage3_responses = self._ensure_header_in_tsv(
             stage3_responses, StageFormats.STAGE3_HEADER, "Stage 3", patent_id
         )

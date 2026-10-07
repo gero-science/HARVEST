@@ -20,12 +20,12 @@ expansion); COMPOUND = InChIKey connectivity[:14], row-level OR (gold over its 4
 InChIKey(clean_smiles), BindingDB inchi_cut).
 
 Inputs: set $HARVEST_PARQUET (required), optional $HARVEST_DATA_DIR (repo root),
-$HARVEST_BDB_PARQUET (full_bdb_chembl_fix.parquet under $HARVEST_DATA_DIR).
+$HARVEST_BDB_PARQUET (default data/full_bdb_chembl_fix.parquet under $HARVEST_DATA_DIR).
 Patent map: curated_data/patent_mapping.csv.
 Reference: curated_data/manual_reference.csv.
 Molecular weight / synthetic accessibility are cached to parquet on first run.
 
-Run:  python make_figures.py
+Run:  python manuscript/plot_fidelity.py
 """
 import os
 import re
@@ -44,11 +44,11 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(HERE)
 DATA = os.environ.get('HARVEST_DATA_DIR', REPO_ROOT)
 REFERENCE = os.environ.get('HARVEST_REFERENCE', f'{REPO_ROOT}/curated_data/manual_reference.csv')
-BDB = os.environ.get('HARVEST_BDB_PARQUET', f'{DATA}/full_bdb_chembl_fix.parquet')
+BDB = os.environ.get('HARVEST_BDB_PARQUET', f'{DATA}/data/full_bdb_chembl_fix.parquet')
 PMAP = os.environ.get('HARVEST_PATENT_MAP', f'{REPO_ROOT}/curated_data/patent_mapping.csv')
-IKCACHE = f'{DATA}/harvest_inchikey_clean_cache.parquet'     # optional (clean_smiles -> InChIKey); regenerable
+IKCACHE = f'{DATA}/harvest_inchikey_clean_cache.parquet'
 FIGS = os.environ.get('HARVEST_FIG_DIR', f'{HERE}/figs')
-PROPCACHE = f'{HERE}/quality_fig_props_cache.parquet'         # smiles -> mw, sa (built on first run)
+PROPCACHE = f'{HERE}/quality_fig_props_cache.parquet'
 PERPATENT_OUT = os.environ.get('HARVEST_PERPATENT_OUT', f'{HERE}/per_patent_fidelity.csv')
 VALUE_EQ_ONLY = os.environ.get('HARVEST_VALUE_EQ_ONLY', '0') == '1'   # opt-in: restrict value criterion to exact '=' reference rows (off by default; the value bar then compares all values)
 os.makedirs(FIGS, exist_ok=True)
@@ -90,11 +90,15 @@ def _harvest_parquet_path() -> str:
 def load_all():
     dfh = pd.read_parquet(_harvest_parquet_path(), columns=['patent_number', 'UniProt ID', 'clean_smiles', 'relation',
                                          'Target accession', 'IC50 (nM)', 'Ki (nM)', 'Kd (nM)', 'EC50 (nM)'])
-    dfb = pd.read_parquet(BDB, columns=['source', 'patent_number', 'smiles', 'inchi_cut', 'uniprot_id',
-                                        'uniprot_acc', 'inchikey_clean', 'activity_type', 'activity_value',
-                                        'activity_relation'])
-    dfb = dfb[dfb['source'] == 'bindingdb'].copy()
-    dfb['is_us_patent'] = dfb['patent_number'].fillna('').astype(str).str.startswith('US')
+    if os.path.exists(BDB):
+        dfb = pd.read_parquet(BDB, columns=['source', 'patent_number', 'smiles', 'inchi_cut', 'uniprot_id',
+                                            'uniprot_acc', 'inchikey_clean', 'activity_type', 'activity_value',
+                                            'activity_relation'])
+        dfb = dfb[dfb['source'] == 'bindingdb'].copy()
+        dfb['is_us_patent'] = dfb['patent_number'].fillna('').astype(str).str.startswith('US')
+    else:
+        print(f'  BDB parquet not found ({BDB}), producing fidelity-only figure')
+        dfb = None
     return dfh, dfb
 
 
@@ -451,7 +455,7 @@ def property_cache(unique_smiles):
     from rdkit.Chem import RDConfig
     sys.path.append(os.path.join(RDConfig.RDContribDir, 'SA_Score'))
     import sascorer
-    have = pd.read_parquet(PROPCACHE) if os.path.exists(PROPCACHE) else pd.DataFrame(columns=['smiles', 'mw', 'sa'])
+    have = pd.read_parquet(PROPCACHE) if os.path.exists(PROPCACHE) else pd.DataFrame(columns=['smiles', 'mw', 'sa']).astype({'smiles': str, 'mw': float, 'sa': float})
     known = set(have['smiles'])
     todo = [s for s in unique_smiles if s not in known]
     if todo:
@@ -464,7 +468,11 @@ def property_cache(unique_smiles):
                     rows.append((s, Descriptors.MolWt(m), sascorer.calculateScore(m)))
             except Exception:
                 continue
-        have = pd.concat([have, pd.DataFrame(rows, columns=['smiles', 'mw', 'sa'])], ignore_index=True)
+        new = pd.DataFrame(rows, columns=['smiles', 'mw', 'sa'])
+        import warnings
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', FutureWarning)
+            have = pd.concat([have, new], ignore_index=True) if len(have) else new
         have.to_parquet(PROPCACHE)
     return dict(zip(have['smiles'], have['mw'])), dict(zip(have['smiles'], have['sa']))
 
@@ -718,18 +726,57 @@ def make_fig_fidelity_supp(ho, rest, ho_full):
     print(f'  (b) buckets n {ns}  recall {[round(v,3) for v in rm3]}  prec {[round(v,3) for v in pm3]}')
 
 
+def make_fig_fidelity_only(per):
+    """Standalone fidelity figure (panel f) — no BDB data required."""
+    METS = [('Compound', 'harvest_recall_compound', 'harvest_precision_compound'),
+            ('Target', 'harvest_recall_target', 'harvest_precision_target'),
+            ('Compound\n+ target', 'harvest_recall_pair', 'harvest_precision_pair'),
+            ('Compound\n+ target\n+ value', 'harvest_recall_value', 'harvest_precision_value')]
+    rm, re_, pm, pe = [], [[], []], [], [[], []]
+    for _, rc, pc in METS:
+        r = sboot(per[rc].tolist()); rm.append(r[0]); re_[0].append(r[1]); re_[1].append(r[2])
+        p = sboot(per[pc].tolist()); pm.append(p[0]); pe[0].append(p[1]); pe[1].append(p[2])
+    labels = [m[0] for m in METS]
+
+    fig, ax = plt.subplots(figsize=(7, 5.5))
+    x = np.arange(len(labels)); w = 0.38
+    for j, (lab, m, e, cc) in enumerate([('Recall', rm, re_, C_R), ('Precision', pm, pe, C_P)]):
+        off = (j - 0.5) * w
+        ax.bar(x + off, m, w, label=lab, color=cc, yerr=e, capsize=3, error_kw=dict(lw=1.1, alpha=.7))
+        for xi, mi, hi in zip(x, m, e[1]):
+            ax.text(xi + off, mi + hi + 0.02, f'{mi:.2f}', ha='center', fontsize=11)
+    ax.set_xticks(x); ax.set_xticklabels(labels, fontsize=12); ax.set_ylim(0, 1.18)
+    ax.set_ylabel('Agreement with manual\nreference (per-patent, 95% CI)', fontsize=14)
+    ax.set_title('Fidelity vs manual reference', fontsize=15, fontweight='bold')
+    ax.legend(loc='upper center', bbox_to_anchor=(0.5, 1.0), ncol=2, fontsize=12,
+              frameon=True, framealpha=0.9, edgecolor='0.8')
+    fig.tight_layout()
+    fig.savefig(f'{FIGS}/fig_fidelity.png', dpi=400, bbox_inches='tight')
+    fig.savefig(f'{FIGS}/fig_fidelity.pdf', bbox_inches='tight')
+    plt.close(fig)
+    print('wrote', f'{FIGS}/fig_fidelity.png')
+    print(f'  recall  : {[round(v,3) for v in rm]}   precision: {[round(v,3) for v in pm]}')
+
+
 def main():
     set_style()
-    print('loading HARVEST + BindingDB (once) ...'); dfh, dfb = load_all()
-    print('scoring fidelity vs the manual reference ...'); per = compute_fidelity(dfh, dfb)
-    ho = per[per['in_bindingdb'] == 'no']
-    rest = per[per['in_bindingdb'] == 'yes']
-    emp = pd.DataFrame({'patent': EMPTIES, 'harvest_recall_pair': np.nan,
-                        'harvest_precision_pair': 0.0, 'n_reference_datapoints': 0})
-    ho_full = pd.concat([ho[['patent', 'harvest_recall_pair', 'harvest_precision_pair', 'n_reference_datapoints']],
-                         emp], ignore_index=True)
-    make_fig_quality(dfh, dfb, ho, rest)
-    make_fig_fidelity_supp(ho, rest, ho_full)
+    has_bdb = os.path.exists(BDB)
+    print('loading HARVEST', '+ BindingDB' if has_bdb else '(no BDB)', '...')
+    dfh, dfb = load_all()
+    dfb_for_scoring = dfb if dfb is not None else pd.DataFrame()
+    print('scoring fidelity vs the manual reference ...'); per = compute_fidelity(dfh, dfb_for_scoring)
+
+    if has_bdb:
+        ho = per[per['in_bindingdb'] == 'no']
+        rest = per[per['in_bindingdb'] == 'yes']
+        emp = pd.DataFrame({'patent': EMPTIES, 'harvest_recall_pair': np.nan,
+                            'harvest_precision_pair': 0.0, 'n_reference_datapoints': 0})
+        ho_full = pd.concat([ho[['patent', 'harvest_recall_pair', 'harvest_precision_pair', 'n_reference_datapoints']],
+                             emp], ignore_index=True)
+        make_fig_quality(dfh, dfb, ho, rest)
+        make_fig_fidelity_supp(ho, rest, ho_full)
+    else:
+        make_fig_fidelity_only(per)
 
 
 if __name__ == '__main__':
