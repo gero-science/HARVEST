@@ -43,6 +43,11 @@ class FastaGeneResolver:
         "unknown", "unspecified", "not specified",
         "human_default",
     }
+
+    # An Entry name hit from one of these species is only accepted when that
+    # species was requested, so the fallback cannot swap in a model-organism
+    # ortholog for another species.
+    _MODEL_SPECIES = {"homo sapiens", "mus musculus", "rattus norvegicus"}
     
     def __init__(self):
         """Private constructor. Use FastaGeneResolver.create() to instantiate."""
@@ -54,6 +59,8 @@ class FastaGeneResolver:
         self._index: Dict[Tuple[str, str], SeqRecord] = {}
         # Secondary index by accession for extract_accession_from_id
         self._records_by_accession: Dict[str, SeqRecord] = {}
+        # Index by Entry name (mnemonic, upper case) for the entry-name fallback
+        self._records_by_entry_name: Dict[str, SeqRecord] = {}
     
     @classmethod
     async def create(cls, fasta_path: Union[str, Path]) -> 'FastaGeneResolver':
@@ -86,7 +93,8 @@ class FastaGeneResolver:
         try:
             await asyncio.to_thread(self._load_fasta, Path(fasta_path))
             self.logger.info(
-                f"FastaGeneResolver initialized: {len(self._index)} (gene, species) records"
+                f"FastaGeneResolver initialized: {len(self._index)} (gene, species) records, "
+                f"{len(self._records_by_entry_name)} entry names"
             )
         except Exception as e:
             self.logger.error(f"Error initializing FastaGeneResolver: {e}")
@@ -112,6 +120,10 @@ class FastaGeneResolver:
             accession = self._extract_accession(record.id)
             if accession:
                 self._records_by_accession[accession] = record
+
+            entry_name = self._extract_entry_name(record.id)
+            if entry_name:
+                self._records_by_entry_name.setdefault(entry_name.upper(), record)
             
             # Parse header to extract gene and species
             gene, species = self._parse_header(record.description)
@@ -161,6 +173,14 @@ class FastaGeneResolver:
             if len(parts) >= 2:
                 return parts[1]
         return seq_id
+
+    def _extract_entry_name(self, seq_id: str) -> Optional[str]:
+        """Extract the Entry name (mnemonic) from a string like 'sp|P01112|HRAS_HUMAN'."""
+        if '|' in seq_id:
+            parts = seq_id.split('|')
+            if len(parts) >= 3:
+                return parts[2]
+        return None
     
     def _normalize_species(self, species: str) -> str:
         """
@@ -229,6 +249,39 @@ class FastaGeneResolver:
         
         self.logger.debug(f"Not found: {gene} ({species})")
         return None
+
+    def resolve_by_entry_name(self, entry_name: str, species: Optional[str] = None) -> Optional[SeqRecord]:
+        """
+        Resolve a UniProt Entry name (mnemonic) to a SeqRecord, case-insensitively.
+
+        Fallback for proteins without a usable GN= field (e.g. viral polyproteins).
+        A human, mouse or rat entry is rejected unless `species` names that same
+        species; other entries (viruses, bacteria) are accepted as returned.
+
+        Args:
+            entry_name: UniProt Entry name (e.g. "STING_HUMAN", "POLG_HCV77")
+            species: Species the entry is meant for (e.g. "Homo sapiens")
+
+        Returns:
+            SeqRecord with sequence or None if not found or rejected
+        """
+        if not entry_name:
+            return None
+
+        record = self._records_by_entry_name.get(entry_name.strip().upper())
+        if record is None:
+            self.logger.debug(f"Not found by entry name: {entry_name}")
+            return None
+
+        if species:
+            _, record_species = self._parse_header(record.description)
+            record_species = (record_species or "").lower()
+            if record_species in self._MODEL_SPECIES and self._normalize_species(species) != record_species:
+                self.logger.debug(f"Rejected entry name {entry_name}: {record_species} != {species}")
+                return None
+
+        self.logger.debug(f"Found by entry name {entry_name}: {len(record.seq)} aa")
+        return record
     
     def extract_accession_from_id(self, seq_id: str) -> Optional[str]:
         """Extract Accession ID from a string like 'sp|P01112|HRAS_HUMAN'."""
@@ -246,6 +299,7 @@ class FastaGeneResolver:
         """Return statistics for loaded data."""
         return {
             "indexed_gene_species_pairs": len(self._index),
+            "indexed_entry_names": len(self._records_by_entry_name),
             "total_records": len(self._records_by_accession),
             "initialized": self._initialized
         }

@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import re
 import sys
 import os
 from pathlib import Path
@@ -10,6 +11,36 @@ sys.path.append(os.path.dirname(SCRIPT_DIR))
 
 from llm.call_llm import LLM
 from .config_postprocess import DEFAULT_FASTA_PATH, ConfigProteinLLM
+
+
+def _normalize_label(value) -> str:
+    """Case- and whitespace-insensitive form of a protein name or organism label."""
+    return " ".join(str(value or "").replace("\\", "").lower().split())
+
+
+def _name_aliases(name) -> set[str]:
+    """The name, the name without its parenthetical parts, and each parenthetical part.
+
+    "neutral sphingomyelinase 2 (nSMase2)" -> {"neutral sphingomyelinase 2 (nsmase2)",
+    "neutral sphingomyelinase 2", "nsmase2"}
+    """
+    full = _normalize_label(name)
+    aliases = {full, " ".join(re.sub(r"\([^()]*\)", " ", full).split())}
+    aliases.update(part.strip() for part in re.findall(r"\(([^()]*)\)", full))
+    aliases.discard("")
+    return aliases
+
+
+def _gene_species_key(gene, species) -> tuple[str, str]:
+    return _normalize_label(gene), _normalize_label(species)
+
+
+def _resolution_score(result: dict) -> tuple[int, int]:
+    """Rank results answering the same request: sequences first, then genes."""
+    proteins = result.get("proteins")
+    if proteins is not None:
+        return sum(1 for p in proteins if p.get("sequence")), len(proteins)
+    return int(bool(result.get("sequence"))), int(bool(result.get("gene")))
 
 
 class ProteinPostprocessor:
@@ -93,6 +124,12 @@ class ProteinPostprocessor:
     ) -> list[dict]:
         """
         Postprocess protein names to get gene symbol, species, sequence, accession, and uniprot_id.
+
+        Two steps in one conversation:
+        1. The LLM returns gene + species, looked up in the FASTA by GN=
+        2. Genes not found there are retried by the UniProt Entry name the LLM gives
+
+        Results are then re-keyed on the request they answer (see _bind_to_requests).
         
         Args:
             protein_data: List of dicts with 'protein_name' and 'organism' keys
@@ -135,11 +172,18 @@ class ProteinPostprocessor:
         else:
             user_prompt = self.config.USER_PROMPT_SIMPLE.format(text_chunk=input_text)
         
-        raw, _ = await self.llm.async_call_llm(user_prompt, self.config.SYSTEM_PROMPT)
+        messages = [
+            {"role": "system", "content": self.config.SYSTEM_PROMPT},
+            {"role": "user", "content": user_prompt},
+        ]
+        raw, _ = await self.llm.async_call_llm(messages=messages)
+        if not raw:
+            raise RuntimeError("LLM returned an empty response for protein postprocessing")
         llm_results = self._parse_llm_response(raw)
         
         # Build result list
         result = []
+        unresolved = []  # Results to retry by Entry name
         
         for item in llm_results:
             protein_name = item.get("protein")
@@ -169,15 +213,30 @@ class ProteinPostprocessor:
             seq_record = self.resolver.resolve(gene, species)
             
             if seq_record:
-                protein_result["sequence"] = str(seq_record.seq)
-                protein_result["accession"] = self.resolver.extract_accession_from_id(seq_record.id)
-                protein_result["uniprot_id"] = self.resolver.extract_uniprot_from_id(seq_record.id)
+                self._fill_sequence(protein_result, seq_record)
             else:
-                logging.debug(f"No sequence found for {gene} ({species})")
+                unresolved.append(protein_result)
+                logging.debug(f"No sequence found for {gene} ({species}), will try the Entry name")
             
             result.append(protein_result)
+
+        if unresolved:
+            logging.info(f"Entry name fallback: {len(unresolved)} unresolved proteins")
+            entry_names = await self._request_entry_names(
+                messages,
+                raw,
+                self.config.ENTRY_NAME_PROMPT,
+                [
+                    f"- {p['protein_name']} (gene: {p['gene']}, species: {p['organism_scientific']})"
+                    for p in unresolved
+                ],
+            )
+            for protein_result in unresolved:
+                species = protein_result["organism_scientific"]
+                entry_name = entry_names.get(_gene_species_key(protein_result["gene"], species))
+                self._apply_entry_name(protein_result, entry_name, species)
         
-        return result
+        return self._bind_to_requests(result, protein_data, "protein_name")
     
     async def postprocess_complex(
         self, 
@@ -186,6 +245,8 @@ class ProteinPostprocessor:
     ) -> list[dict]:
         """
         Process protein complexes by extracting all genes for each complex.
+
+        Genes not found by GN= are retried by Entry name, as in postprocess().
         
         Args:
             complex_data: List of dicts with 'complex_name' and 'organism' keys
@@ -226,11 +287,18 @@ class ProteinPostprocessor:
         else:
             user_prompt = self.config.USER_PROMPT_COMPLEX_SIMPLE.format(text_chunk=input_text)
         
-        raw, _ = await self.llm.async_call_llm(user_prompt, self.config.SYSTEM_PROMPT_COMPLEX)
+        messages = [
+            {"role": "system", "content": self.config.SYSTEM_PROMPT_COMPLEX},
+            {"role": "user", "content": user_prompt},
+        ]
+        raw, _ = await self.llm.async_call_llm(messages=messages)
+        if not raw:
+            raise RuntimeError("LLM returned an empty response for complex postprocessing")
         llm_results = self._parse_llm_response(raw)
         
         # Build result list with resolved proteins
         result = []
+        unresolved = []  # (protein result, complex species) to retry by Entry name
         
         for item in llm_results:
             complex_name = item.get("complex_name")
@@ -256,9 +324,9 @@ class ProteinPostprocessor:
                 
                 seq_record = self.resolver.resolve(gene, species)
                 if seq_record:
-                    protein_result["sequence"] = str(seq_record.seq)
-                    protein_result["accession"] = self.resolver.extract_accession_from_id(seq_record.id)
-                    protein_result["uniprot_id"] = self.resolver.extract_uniprot_from_id(seq_record.id)
+                    self._fill_sequence(protein_result, seq_record)
+                else:
+                    unresolved.append((protein_result, species))
                 
                 resolved_proteins.append(protein_result)
             
@@ -268,8 +336,134 @@ class ProteinPostprocessor:
                 "species": species,
                 "proteins": resolved_proteins
             })
+
+        if unresolved:
+            logging.info(f"Entry name fallback (complexes): {len(unresolved)} unresolved genes")
+            entry_names = await self._request_entry_names(
+                messages,
+                raw,
+                self.config.ENTRY_NAME_PROMPT_COMPLEX,
+                [f"- {p['gene']} (species: {species})" for p, species in unresolved],
+            )
+            for protein_result, species in unresolved:
+                entry_name = entry_names.get(_gene_species_key(protein_result["gene"], species))
+                self._apply_entry_name(protein_result, entry_name, species)
         
-        return result
+        return self._bind_to_requests(result, complex_data, "complex_name")
+
+    def _fill_sequence(self, protein_result: dict, seq_record) -> None:
+        protein_result["sequence"] = str(seq_record.seq)
+        protein_result["accession"] = self.resolver.extract_accession_from_id(seq_record.id)
+        protein_result["uniprot_id"] = self.resolver.extract_uniprot_from_id(seq_record.id)
+
+    async def _request_entry_names(
+        self,
+        messages: list[dict],
+        first_response: str,
+        prompt_template: str,
+        unresolved_lines: list[str],
+    ) -> dict[tuple[str, str], str]:
+        """
+        Ask, in the same conversation, for the UniProt Entry names of unresolved genes.
+
+        Returns:
+            Map from (gene, species), normalized with _gene_species_key, to the Entry name
+        """
+        followup = messages + [
+            {"role": "assistant", "content": first_response},
+            {"role": "user", "content": prompt_template.format(unresolved_list="\n".join(unresolved_lines))},
+        ]
+        raw, _ = await self.llm.async_call_llm(messages=followup)
+        if not raw:
+            logging.warning("LLM returned an empty response for the Entry name fallback")
+            return {}
+
+        entry_names = {}
+        for item in self._parse_llm_response(raw):
+            gene = item.get("gene")
+            entry_name = item.get("entry_name")
+            if gene and entry_name:
+                entry_names[_gene_species_key(gene, item.get("species"))] = entry_name
+        return entry_names
+
+    def _apply_entry_name(self, protein_result: dict, entry_name: str | None, species: str | None) -> None:
+        if not entry_name:
+            return
+        seq_record = self.resolver.resolve_by_entry_name(entry_name, species)
+        if seq_record:
+            self._fill_sequence(protein_result, seq_record)
+            logging.debug(f"Resolved {protein_result['gene']} ({species}) via Entry name {entry_name}")
+        else:
+            logging.debug(f"Entry name {entry_name} not usable for {protein_result['gene']} ({species})")
+
+    def _bind_to_requests(self, results: list[dict], requests: list[dict], name_key: str) -> list[dict]:
+        """
+        Re-key LLM results on the request they answer.
+
+        The export joins results on the requested name and organism, but the LLM
+        may echo the name in another form ("nSMase2" for "neutral sphingomyelinase 2
+        (nSMase2)"), split one name into several entries, or reword the organism
+        ("human (assumed)" for "unspecified").
+
+        A result is bound to the request with the same name, otherwise to the one
+        request that shares an alias with it (see _name_aliases). A tie is broken by
+        organism; requests with the same name that still tie are taken in order. An
+        alias shared by several requests ("EGFR" for "EGFR (L858R)" and "EGFR
+        (T790M)") binds to none of them. A bound result takes the request's name and
+        organism, and when several results bind to one request the best-resolved one
+        is kept. Results that bind to no single request are kept as the LLM returned
+        them, unless they would shadow a bound result in the export.
+
+        Args:
+            results: Results built from the LLM response, each with name_key and "organism"
+            requests: The entries sent to the LLM, each with name_key and "organism"
+            name_key: "protein_name" or "complex_name"
+        """
+        request_names = [_normalize_label(r[name_key]) for r in requests]
+        request_aliases = [_name_aliases(r[name_key]) for r in requests]
+
+        best: dict[int, dict] = {}
+        unbound = []
+        for res in results:
+            name = _normalize_label(res.get(name_key))
+            candidates = [i for i, requested in enumerate(request_names) if requested == name]
+            exact = bool(candidates)
+            if not exact:
+                aliases = _name_aliases(res.get(name_key))
+                candidates = [i for i, requested in enumerate(request_aliases) if requested & aliases]
+            if len(candidates) > 1:
+                organism = _normalize_label(res.get("organism"))
+                same_organism = [i for i in candidates if _normalize_label(requests[i]["organism"]) == organism]
+                candidates = same_organism or candidates
+            if len(candidates) > 1 and exact:
+                candidates = [i for i in candidates if i not in best][:1]
+
+            if len(candidates) != 1:
+                unbound.append(res)
+                continue
+            i = candidates[0]
+            if i not in best or _resolution_score(res) > _resolution_score(best[i]):
+                best[i] = res
+
+        bound = []
+        for i in sorted(best):
+            res = dict(best[i])
+            requested_name = requests[i][name_key].replace("\\", "")
+            if res.get(name_key) != requested_name or res.get("organism") != requests[i]["organism"]:
+                logging.debug(
+                    f"Bound LLM result {res.get(name_key)!r} ({res.get('organism')}) "
+                    f"to request {requested_name!r} ({requests[i]['organism']})"
+                )
+            res[name_key] = requested_name
+            res["organism"] = requests[i]["organism"]
+            bound.append(res)
+
+        bound_keys = {(_normalize_label(r[name_key]), _normalize_label(r["organism"])) for r in bound}
+        bound.extend(
+            r for r in unbound
+            if (_normalize_label(r.get(name_key)), _normalize_label(r.get("organism"))) not in bound_keys
+        )
+        return bound
     
     def _parse_llm_response(self, response: str) -> list[dict]:
         """

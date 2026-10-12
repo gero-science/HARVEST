@@ -20,15 +20,38 @@ Return a JSON array:
   }
 ]
 
+## Gene Symbol Requirements
+The gene symbols will be searched in UniProt SwissProt by the GN= field.
+Use CURRENT official gene symbols, NOT aliases or outdated names.
+These mappings apply to ALL species:
+
+| Outdated/Alias | Use Instead |
+|----------------|-------------|
+| TMEM173        | STING1      |
+| Tmem173        | Sting1      |
+| ADRBK1         | GRK2        |
+| GDF8           | MSTN        |
+| MB21D1         | CGAS        |
+| GPR44          | PTGDR2      |
+| WHSC1          | NSD2        |
+| MGEA5          | OGA         |
+| GBA            | GBA1        |
+| PAPD5          | TENT4B      |
+| SMN2           | SMN1        |
+
 ## Rules
 - List ALL key proteins in the complex (receptors, kinases, subunits, etc.)
 - If input is a single specific protein (not a complex), return its gene in the genes array
 - Generic protein families without specific member (e.g. "HDAC", "TLR", "MMP") → genes: []
 - If complex/protein is not identifiable → genes: []
 - If not a protein (cell line, compound) → genes: []
+- If protein is a readout/marker (measured effect, not the drug target) → genes: []
 - For bacterial proteins: use full scientific species name
 - For viral proteins: species = virus scientific name
+- Viral systems/substrates (e.g. "HCV replicon", "HCV RNA", "HBV DNA") → genes: [], species = virus name
 - Always normalize organism to scientific name in species field
+- If organism is not specified or unclear (e.g., "mammalian", "cells") → assume Homo sapiens
+- If experiment uses mouse/rat model but the drug target is for humans → prefer Homo sapiens
 
 ## Not complexes/proteins (return genes: [])
 - Protein-protein interaction pairs (e.g. "PD-1/PD-L1 binding") — two separate proteins, not a complex
