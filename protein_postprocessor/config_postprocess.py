@@ -27,6 +27,11 @@ class ConfigProteinLLM(ConfigLLM):
         "protein_complex_user_prompt_with_context.txt"
     )
 
+    # Follow-up turn for genes that have no GN= match in SwissProt
+    # (viral polyproteins, renamed genes): asks for the UniProt Entry name.
+    ENTRY_NAME_PROMPT = load_prompt_file("protein_entry_name_prompt.txt")
+    ENTRY_NAME_PROMPT_COMPLEX = load_prompt_file("protein_complex_entry_name_prompt.txt")
+
     # --- LLM Configuration ---
     API_RETRY_DELAY = 15
     API_RETRY_ATTEMPTS = 5

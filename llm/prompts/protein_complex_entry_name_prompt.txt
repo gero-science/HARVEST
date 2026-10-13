@@ -1,0 +1,12 @@
+The following genes from complexes were not found in UniProt SwissProt.
+Please provide the UniProt Entry name (mnemonic) for each.
+
+Examples of Entry names: STING_HUMAN, POLG_HCV77, JAK1_MOUSE, POL_HV1H2, NS5A_HCVJF
+
+Unresolved genes:
+{unresolved_list}
+
+Return JSON array:
+[{{"gene": "...", "species": "...", "entry_name": "..."}}, ...]
+
+If you cannot determine the Entry name, return entry_name: null

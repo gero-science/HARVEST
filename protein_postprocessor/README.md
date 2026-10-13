@@ -26,7 +26,9 @@ written as `organism = "human (default)"`; there is no separate
 
 `FastaGeneResolver` does not substitute a human ortholog when the requested
 species is missing from the FASTA, so a resolved species is never silently
-replaced by Homo sapiens here.
+replaced by Homo sapiens here. When the organism is not stated, the LLM prompt
+asks for Homo sapiens; the export then sees an unstated Stage 1 organism with a
+human sequence and labels the row `human (default)`.
 
 ## Installation
 
@@ -190,7 +192,9 @@ results/
    - For proteins: obtains gene symbol and species
    - For complexes: obtains ALL genes in the complex
 6. **FastaGeneResolver** — looks up sequence in FASTA by (gene, species)
-7. **Saving** — results are written to the corresponding files
+7. **Entry name fallback** — genes not found by GN= (e.g. viral polyproteins) are sent back to the LLM in the same conversation for their UniProt Entry name (`R1AB_SARS2`) and looked up by it; a human, mouse or rat entry is only accepted for that same species
+8. **Binding to the request** — each result is saved under the protein name and organism it was requested with, even when the LLM echoed them in another form (`nSMase2` for `neutral sphingomyelinase 2 (nSMase2)`, `human (assumed)` for `unspecified`), because the export joins on them
+9. **Saving** — results are written to the corresponding files
 
 ## Fault tolerance
 

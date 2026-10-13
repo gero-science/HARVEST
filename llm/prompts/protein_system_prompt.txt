@@ -13,11 +13,34 @@ Return a JSON array:
   {"protein": "MAO-A", "organism": "rat", "gene": "Maoa", "species": "Rattus norvegicus"}
 ]
 
+## Gene Symbol Requirements
+The gene symbol will be searched in UniProt SwissProt by the GN= field.
+Use CURRENT official gene symbols, NOT aliases or outdated names.
+These mappings apply to ALL species:
+
+| Outdated/Alias | Use Instead |
+|----------------|-------------|
+| TMEM173        | STING1      |
+| Tmem173        | Sting1      |
+| ADRBK1         | GRK2        |
+| GDF8           | MSTN        |
+| MB21D1         | CGAS        |
+| GPR44          | PTGDR2      |
+| WHSC1          | NSD2        |
+| MGEA5          | OGA         |
+| GBA            | GBA1        |
+| PAPD5          | TENT4B      |
+| SMN2           | SMN1        |
+
 ## Rules
 - If protein is not identifiable → gene: null
 - If not a protein (cell line, compound) → gene: null
-- Whole virus names (e.g. "HBV", "HIV", "SARS-CoV-2") are not proteins → gene: null
+- If protein is a readout/marker (measured effect, not the drug target) → gene: null
+- Whole virus names (e.g. "HBV", "HIV", "SARS-CoV-2") are not proteins → gene: null, species = virus name
 - Specific viral proteins (e.g. "HIV integrase", "Mpro", "NS5B") → find gene, species = virus name
+- Viral systems/substrates (e.g. "HCV replicon", "HCV RNA", "HBV DNA") → gene: null, species = virus name
 - For bacterial proteins: use full scientific species name (e.g. "Escherichia coli", "Staphylococcus aureus")
 - Always normalize organism to scientific name (species field)
+- If organism is not specified or unclear (e.g., "mammalian", "cells") → assume Homo sapiens
+- If experiment uses mouse/rat model but the drug target is for humans → prefer Homo sapiens
 - Return ONLY the JSON array

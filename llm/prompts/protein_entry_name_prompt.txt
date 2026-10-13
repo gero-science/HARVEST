@@ -1,0 +1,12 @@
+The following proteins were not found by gene symbol in UniProt SwissProt.
+Please provide the UniProt Entry name (mnemonic) for each.
+
+Examples of Entry names: STING_HUMAN, POLG_HCV77, JAK1_MOUSE, POL_HV1H2, NS5A_HCVJF
+
+Unresolved proteins:
+{unresolved_list}
+
+Return JSON array. Copy gene and species EXACTLY as shown above for matching:
+[{{"gene": "...", "species": "...", "entry_name": "..."}}, ...]
+
+If you cannot determine the Entry name, return entry_name: null
